@@ -9,20 +9,26 @@ from loguru import logger
 from tqdm import tqdm
 from trainer import Trainer
 from utils.helpers import dir_exists, remove_files, double_threshold_iteration
-from utils.metrics import AverageMeter, get_metrics, get_metrics, count_connect_component
+from utils.metrics import AverageMeter, get_metrics, get_metrics, count_connect_component, evaluate
 import ttach as tta
 
 
 class Tester(Trainer):
-    def __init__(self, model, loss, CFG, checkpoint, test_loader, dataset_path, show=False):
+    def __init__(self, model, loss, CFG, checkpoint, test_loader, dataset_path, dataset_name, experiment_date, show=False):
         # super(Trainer, self).__init__()
         self.loss = loss
         self.CFG = CFG
         self.test_loader = test_loader
-        self.model = nn.DataParallel(model.cuda())
+        self.dataset_name = dataset_name
+        self.experiment_date = experiment_date
+        if torch.cuda.is_available():
+            self.model = nn.DataParallel(model.cuda())
+        else:
+            self.model = nn.DataParallel(model)
         self.dataset_path = dataset_path
         self.show = show
-        self.model.load_state_dict(checkpoint['state_dict'])
+        if 'state_dict' in checkpoint:
+            self.model.load_state_dict(checkpoint['state_dict'])
         if self.show:
             dir_exists("save_picture")
             remove_files("save_picture")
@@ -36,11 +42,17 @@ class Tester(Trainer):
         self._reset_metrics()
         tbar = tqdm(self.test_loader, ncols=150)
         tic = time.time()
+
+        all_gt = []
+        all_pre = []
+        all_pre_DTI = []
+        
         with torch.no_grad():
             for i, (img, gt) in enumerate(tbar):
                 self.data_time.update(time.time() - tic)
-                img = img.cuda(non_blocking=True)
-                gt = gt.cuda(non_blocking=True)
+                if torch.cuda.is_available():
+                    img = img.cuda(non_blocking=True)
+                    gt = gt.cuda(non_blocking=True)
                 pre = self.model(img)
                 loss = self.loss(pre, gt)
                 self.total_loss.update(loss.item())
@@ -52,6 +64,8 @@ class Tester(Trainer):
                     H, W = 960, 999
                 elif self.dataset_path.endswith("DCA1"):
                     H, W = 300, 300
+                elif 'MMS' in self.dataset_path:
+                    H, W = 384, 384
 
                 if not self.dataset_path.endswith("CHUAC"):
                     img = TF.crop(img, 0, 0, H, W)
@@ -60,6 +74,10 @@ class Tester(Trainer):
                 img = img[0,0,...]
                 gt = gt[0,0,...]
                 pre = pre[0,0,...]
+
+                all_gt.append(gt)
+                all_pre.append(pre)
+
                 if self.show:
                     predict = torch.sigmoid(pre).cpu().detach().numpy()
                     predict_b = np.where(predict >= self.CFG.threshold, 1, 0)
@@ -75,6 +93,7 @@ class Tester(Trainer):
                 if self.CFG.DTI:
                     pre_DTI = double_threshold_iteration(
                         i, pre, self.CFG.threshold, self.CFG.threshold_low, True)
+                    all_pre_DTI.append(torch.tensor(pre_DTI))
                     self._metrics_update(
                         *get_metrics(pre, gt, predict_b=pre_DTI).values())
                     if self.CFG.CCC:
@@ -96,4 +115,12 @@ class Tester(Trainer):
             logger.info(f'     CCC:  {self.CCC.average}')
         for k, v in self._metrics_ave().items():
             logger.info(f'{str(k):5s}: {v}')
+
+        all_gt = torch.stack(all_gt)
+        all_pre = torch.stack(all_pre)
+        evaluate(all_gt, all_pre, self.dataset_name, self.experiment_date)
+
+        if self.CFG.DTI:
+            all_pre_DTI = torch.stack(all_pre_DTI)
+            self.evaluate(all_gt, all_pre_DTI, self.dataset_name, self.experiment_date, self.CFG.DTI)
         

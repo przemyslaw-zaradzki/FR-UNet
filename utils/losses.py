@@ -21,7 +21,10 @@ class FocalLoss(nn.Module):
 
 class BCELoss(nn.Module):
     def __init__(self, reduction="mean", pos_weight=1.0):
-        pos_weight = torch.tensor(pos_weight).cuda()
+        if torch.cuda.is_available():
+            pos_weight = torch.tensor(pos_weight).cuda()
+        else:
+            pos_weight = torch.tensor(pos_weight)
         super(BCELoss, self).__init__()
         self.bce_loss = nn.BCEWithLogitsLoss(
             reduction=reduction, pos_weight=pos_weight)

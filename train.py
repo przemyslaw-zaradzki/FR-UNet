@@ -10,7 +10,7 @@ from utils import losses
 from utils.helpers import get_instance, seed_torch
 
 
-def main(CFG, data_path, batch_size, with_val=False):
+def main(CFG, data_path, batch_size, with_val=False, dataset_name=""):
     seed_torch()
     if with_val:
         train_dataset = vessel_dataset(data_path, mode="training", split=0.9)
@@ -32,7 +32,8 @@ def main(CFG, data_path, batch_size, with_val=False):
         loss=loss,
         CFG=CFG,
         train_loader=train_loader,
-        val_loader=val_loader if with_val else None
+        val_loader=val_loader if with_val else None,
+        dataset_name = dataset_name
     )
 
     trainer.train()
@@ -42,7 +43,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-dp', '--dataset_path', default="/home/lwt/data_pro/vessel/DRIVE", type=str,
                         help='the path of dataset')
-    parser.add_argument('-bs', '--batch_size', default=512,
+    parser.add_argument('-dataset', '--dataset', default="", type=str, required=False,
+                        help='dataset name')
+    parser.add_argument('-bs', '--batch_size', default=512, type=int,
                         help='batch_size for trianing and validation')
     parser.add_argument("--val", help="split training data for validation",
                         required=False, default=False, action="store_true")
@@ -50,4 +53,4 @@ if __name__ == '__main__':
 
     with open('config.yaml', encoding='utf-8') as file:
         CFG = Bunch(safe_load(file))
-    main(CFG, args.dataset_path, args.batch_size, args.val)
+    main(CFG, args.dataset_path, args.batch_size, args.val, args.dataset)

@@ -16,12 +16,15 @@ import ttach as tta
 
 
 class Trainer:
-    def __init__(self, model, CFG=None, loss=None, train_loader=None, val_loader=None):
+    def __init__(self, model, CFG=None, loss=None, train_loader=None, val_loader=None, dataset_name=""):
         self.CFG = CFG
         if self.CFG.amp is True:
             self.scaler = torch.cuda.amp.GradScaler(enabled=True)
         self.loss = loss
-        self.model = nn.DataParallel(model.cuda())
+        if torch.cuda.is_available():
+            self.model = nn.DataParallel(model.cuda())
+        else:
+            self.model = nn.DataParallel(model)
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.optimizer = get_instance(
@@ -30,10 +33,11 @@ class Trainer:
             torch.optim.lr_scheduler, "lr_scheduler", CFG, self.optimizer)
         start_time = datetime.now().strftime('%y%m%d%H%M%S')
         self.checkpoint_dir = os.path.join(
-            CFG.save_dir, self.CFG['model']['type'], start_time)
+            CFG.save_dir, self.CFG['model']['type'], dataset_name, start_time)
         self.writer = tensorboard.SummaryWriter(self.checkpoint_dir)
         dir_exists(self.checkpoint_dir)
         cudnn.benchmark = True
+        self.min_loss = float("inf")
 
     def train(self):
         for epoch in range(1, self.CFG.epochs + 1):
@@ -43,6 +47,18 @@ class Trainer:
                 logger.info(f'## Info for epoch {epoch} ## ')
                 for k, v in results.items():
                     logger.info(f'{str(k):15s}: {v}')
+                if results['val_loss'] < self.min_loss:
+                    logger.info(f"New best model: epoch={epoch}, loss={self.min_loss}->{results['val_loss']}")
+                    self.min_loss = results['val_loss']
+                    filename = os.path.join(self.checkpoint_dir, f'best_model.pth')
+                    state = {
+                        'arch': type(self.model).__name__,
+                        'epoch': epoch,
+                        'state_dict': self.model.state_dict(),
+                    }
+                    torch.save(state, filename)
+                else:
+                    logger.info(f"The model has not improved.: epoch={epoch}, loss={self.min_loss}<-{results['val_loss']}")
             if epoch % self.CFG.save_period == 0:
                 self._save_checkpoint(epoch)
 
@@ -54,11 +70,16 @@ class Trainer:
         tic = time.time()
         for img, gt in tbar:
             self.data_time.update(time.time() - tic)
-            img = img.cuda(non_blocking=True)
-            gt = gt.cuda(non_blocking=True)
+            if torch.cuda.is_available():
+                img = img.cuda(non_blocking=True)
+                gt = gt.cuda(non_blocking=True)
             self.optimizer.zero_grad()
             if self.CFG.amp is True:
-                with torch.cuda.amp.autocast(enabled=True):
+                if torch.cuda.is_available():
+                    with torch.cuda.amp.autocast(enabled=True):
+                        pre = self.model(img)
+                        loss = self.loss(pre, gt)
+                else:
                     pre = self.model(img)
                     loss = self.loss(pre, gt)
                 self.scaler.scale(loss).backward()
@@ -95,10 +116,18 @@ class Trainer:
         tbar = tqdm(self.val_loader, ncols=160)
         with torch.no_grad():
             for img, gt in tbar:
-                img = img.cuda(non_blocking=True)
-                gt = gt.cuda(non_blocking=True)
+                if torch.cuda.is_available():
+                    img = img.cuda(non_blocking=True)
+                    gt = gt.cuda(non_blocking=True)
+                else:
+                    img = img
+                    gt = gt
                 if self.CFG.amp is True:
-                    with torch.cuda.amp.autocast(enabled=True):
+                    if torch.cuda.is_available():
+                        with torch.cuda.amp.autocast(enabled=True):
+                            predict = self.model(img)
+                            loss = self.loss(predict, gt)
+                    else:
                         predict = self.model(img)
                         loss = self.loss(predict, gt)
                 else:

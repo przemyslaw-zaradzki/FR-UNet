@@ -33,6 +33,10 @@ def data_process(data_path, name, patch_size, stride, mode):
         img_path = os.path.join(data_path, "Original")
         gt_path = os.path.join(data_path, "Photoshop")
         file_list = list(sorted(os.listdir(img_path)))
+    elif name == "MMS":
+        img_path = os.path.join(data_path, mode, "images")
+        gt_path = os.path.join(data_path, mode, "manual")
+        file_list = list(sorted(os.listdir(img_path)))
     img_list = []
     gt_list = []
     for i, file in enumerate(file_list):
@@ -42,7 +46,12 @@ def data_process(data_path, name, patch_size, stride, mode):
             img = Grayscale(1)(img)
             img_list.append(ToTensor()(img))
             gt_list.append(ToTensor()(gt))
-
+        elif name == "MMS":
+            img = Image.open(os.path.join(img_path, file))
+            gt = Image.open(os.path.join(gt_path, file.split('fundus')[0] + "fundus_ref.bmp"))
+            img = Grayscale(1)(img)
+            img_list.append(ToTensor()(img))
+            gt_list.append(ToTensor()(gt))
         elif name == "CHASEDB1":
             if len(file) == 13:
                 if mode == "training" and int(file[6:8]) <= 10:
@@ -133,6 +142,8 @@ def get_square(img_list, name):
         shape = 1008
     elif name == "DCA1":
         shape = 320
+    elif "MMS" in name:
+        shape = 385
     _, h, w = img_list[0].shape
     pad = nn.ConstantPad2d((0, shape-w, 0, shape-h), 0)
     for i in range(len(img_list)):
@@ -189,10 +200,10 @@ if __name__ == '__main__':
     parser.add_argument('-dp', '--dataset_path', default="datasets/DRIVE", type=str,
                         help='the path of dataset',required=True)
     parser.add_argument('-dn', '--dataset_name', default="DRIVE", type=str,
-                        help='the name of dataset',choices=['DRIVE','CHASEDB1','STARE','CHUAC','DCA1'],required=True)
+                        help='the name of dataset',choices=['DRIVE','CHASEDB1','STARE','CHUAC','DCA1', 'MMS'],required=True)
     parser.add_argument('-ps', '--patch_size', default=48,
                         help='the size of patch for image partition')
-    parser.add_argument('-s', '--stride', default=6,
+    parser.add_argument('-s', '--stride', default=6, type=int,
                         help='the stride of image partition')
     args = parser.parse_args()
     with open('config.yaml', encoding='utf-8') as file:

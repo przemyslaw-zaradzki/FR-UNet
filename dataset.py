@@ -41,6 +41,18 @@ class vessel_dataset(Dataset):
             torch.manual_seed(seed)
             gt = self.transforms(gt)
 
+        if self.mode == 'test':
+            C, H, W = img.shape
+            if H % 2 != 0:
+                img = img[:,:H-1,:]
+                gt = gt[:,:H-1,:]
+            if W % 2 != 0:
+                img = img[:,:,:W-1]
+                gt = gt[:,:,:W-1]
+
+        gt[gt>=0.5] = 1
+        gt[gt<0.5] = 0
+
         return img, gt
 
     def _select_img(self, file_list):
