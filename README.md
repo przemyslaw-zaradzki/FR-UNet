@@ -1,3 +1,20 @@
+# Retina Vessel Segmentation from OCT Fundus Reconstruction with RF-UNet
+
+This software is forked from lseventeen/FR-UNet and allows segmentation of blood vessels in **OCT reconstruction images** of the human eye retina. Details of the application of the software can be found in the paper:
+
+> Marciniak, T.; Stankiewicz, A.; Zaradzki, P. Neural Networks Application for Accurate Retina Vessel Segmentation from OCT Fundus Reconstruction. Sensors 2023, 23, 1870. https://doi.org/10.3390/s23041870
+
+Link to the paper: https://www.mdpi.com/1424-8220/23/4/1870
+
+The dataset **CAVRI-C** used by the software is available free of charge at: http://dsp.org.pl/CAVRI_Database/191/ 
+
+Example of three fundus reconstructions with ground truth and corresponding segmentation results for 5 neural networks (analyzed in the paper above):
+
+![](figs/OCT_blood_vessels_segmentation.png)
+
+Here is the original readme.md from https://github.com/lseventeen/FR-UNet with environment requirements and setup information.
+
+
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/full-resolution-network-and-dual-threshold/retinal-vessel-segmentation-on-drive)](https://paperswithcode.com/sota/retinal-vessel-segmentation-on-drive?p=full-resolution-network-and-dual-threshold)[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/full-resolution-network-and-dual-threshold/retinal-vessel-segmentation-on-chase_db1)](https://paperswithcode.com/sota/retinal-vessel-segmentation-on-chase_db1?p=full-resolution-network-and-dual-threshold)
 # FR-UNet
 This repository is the official PyTorch code for the paper 'Full-Resolution Network 
